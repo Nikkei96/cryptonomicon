@@ -1,7 +1,18 @@
 <template>
-  <div class="container mx-auto flex flex-col items-center bg-gray-100 p-4">
-    <div class="container">
-      <div class="w-full my-4"></div>
+  <div class="container-fluid mx-auto flex flex-col items-center bg-gray-100 p-4">
+    <!-- Loader -->
+    <div v-if="!coins" class="fixed w-100 h-100 opacity-80 bg-purple-800 inset-0 z-50 flex items-center justify-center">
+      <svg class="animate-spin -ml-1 mr-3 h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
+      </svg>
+    </div>
+
+    <div v-else class="container">
       <section>
         <div class="flex">
           <div class="max-w-xs">
@@ -17,6 +28,19 @@
                 placeholder="Например DOGE"
               />
             </div>
+            <!-- Autocomplete tickers -->
+            <div class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
+              <span
+                v-for="(coin, idx) of findedCoins"
+                :key="idx"
+                @click="addWithHint(coin[0])"
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+              >
+                {{ coin[0] }}
+              </span>
+            </div>
+            <!-- Error message -->
+            <div v-if="error" class="text-sm text-red-600">Такой тикер уже добавлен</div>
           </div>
         </div>
         <button
@@ -24,7 +48,6 @@
           type="button"
           class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
-          <!-- Heroicon name: solid/mail -->
           <svg class="-ml-0.5 mr-2 h-6 w-6" xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#ffffff">
             <path
               d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
@@ -112,6 +135,8 @@ export default {
       tickers: [],
       sel: null,
       graph: [],
+      coins: null,
+      error: false,
     }
   },
 
@@ -134,9 +159,19 @@ export default {
       return this.graph.map(price => 5 + ((price - minValue) * 95) / (maxValue - minValue))
     },
 
+    addWithHint(ticker) {
+      this.ticker = ticker
+      this.$nextTick(() => this.add())
+    },
+
     add() {
+      if (this.tickers.find(t => t.name === this.ticker.toUpperCase())) {
+        this.error = true
+        return
+      }
+
       const currentTicker = {
-        name: this.ticker,
+        name: this.ticker.toUpperCase(),
         price: '-',
       }
 
@@ -158,6 +193,35 @@ export default {
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove)
     },
+  },
+
+  computed: {
+    findedCoins() {
+      if (this.ticker) {
+        return this.coins
+          .filter(
+            c =>
+              // c[0].toLowerCase() === this.ticker.toLowerCase() ||
+              c[0].toLowerCase().startsWith(this.ticker.toLowerCase())
+            // || c[1].FullName.toLowerCase().startsWith(this.ticker.toLowerCase())
+          )
+          .splice(0, 4)
+      } else {
+        return null
+      }
+    },
+  },
+
+  watch: {
+    ticker() {
+      this.error = false
+    },
+  },
+
+  async mounted() {
+    const response = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
+    const coins = await response.json()
+    this.coins = Object.entries(coins.Data)
   },
 }
 </script>
