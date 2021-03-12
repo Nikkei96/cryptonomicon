@@ -84,11 +84,11 @@
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="t in filteredTickers()"
+            v-for="t in filteredTickersPaginated"
             :key="t.name"
-            @click="select(t)"
+            @click="selectedTicker = t"
             :class="{
-              'border-4': sel === t,
+              'border-4': selectedTicker === t,
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -115,12 +115,12 @@
         </dl>
         <hr class="w-full border-t border-gray-600 my-4" />
       </template>
-      <section v-if="sel" class="relative">
-        <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">{{ sel.name }} - USD</h3>
+      <section v-if="selectedTicker" class="relative">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">{{ selectedTicker.name }} - USD</h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
-          <div v-for="(bar, idx) of normalizeGraph()" :key="idx" :style="{ height: `${bar}%` }" class="bg-purple-800 border w-10"></div>
+          <div v-for="(bar, idx) of normalizedGraph" :key="idx" :style="{ height: `${bar}%` }" class="bg-purple-800 border w-10"></div>
         </div>
-        <button @click="sel = null" type="button" class="absolute top-0 right-0">
+        <button @click="selectedTicker = null" type="button" class="absolute top-0 right-0">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -155,14 +155,17 @@ export default {
   data() {
     return {
       ticker: '',
+      filter: '',
+
       tickers: [],
-      sel: null,
+      selectedTicker: null,
+
       graph: [],
+
       coins: null,
       error: false,
+
       page: 1,
-      filter: '',
-      hasNextPage: true,
 
       disableButtonStyle: {
         background: 'gray',
@@ -172,7 +175,7 @@ export default {
   },
 
   methods: {
-    subscribeToUpdate(tickerName) {
+    subscribeToUpdates(tickerName) {
       setInterval(async () => {
         const f = await fetch(
           `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=52d560531aec252bccb710ababace71b484ba5e2a7ba9876ade25ac7df3f2d06`
@@ -180,16 +183,10 @@ export default {
         const data = await f.json()
         this.tickers.find(t => t.name == tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
 
-        if (this.sel?.name === tickerName) {
+        if (this.selectedTicker?.name === tickerName) {
           this.graph.push(data.USD)
         }
       }, 3000)
-    },
-
-    normalizeGraph() {
-      const maxValue = Math.max(...this.graph)
-      const minValue = Math.min(...this.graph)
-      return this.graph.map(price => 5 + ((price - minValue) * 95) / (maxValue - minValue))
     },
 
     addWithHint(ticker) {
@@ -208,48 +205,66 @@ export default {
         price: '-',
       }
 
-      this.tickers.push(currentTicker)
+      this.tickers = [...this.tickers, currentTicker] // Обновить ссылку на массив
 
-      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers))
-      this.subscribeToUpdate(currentTicker.name)
+      this.subscribeToUpdates(currentTicker.name)
 
       this.ticker = ''
       this.filter = ''
     },
 
-    select(ticker) {
-      this.sel = ticker
-      this.graph = []
-    },
-
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove)
-    },
-
-    filteredTickers() {
-      const start = (this.page - 1) * 6
-      const end = this.page * 6
-      const filteredTickers = this.tickers.filter(t => t.name.includes(this.filter))
-
-      this.hasNextPage = filteredTickers.length > end
-
-      return filteredTickers.slice(start, end)
+      if (this.selectedTicker === tickerToRemove) {
+        this.selectedTicker = null
+      }
     },
   },
 
   computed: {
+    startIndex() {
+      return (this.page - 1) * 6
+    },
+
+    endIndex() {
+      return this.page * 6
+    },
+
+    filteredTickers() {
+      return this.tickers.filter(t => t.name.includes(this.filter))
+    },
+
+    filteredTickersPaginated() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex)
+    },
+
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex
+    },
+
     findedCoins() {
       if (this.ticker) {
-        return this.coins
-          .filter(
-            c =>
-              // c[0].toLowerCase() === this.ticker.toLowerCase() ||
-              c[0].toLowerCase().startsWith(this.ticker.toLowerCase())
-            // || c[1].FullName.toLowerCase().startsWith(this.ticker.toLowerCase())
-          )
-          .splice(0, 4)
+        return this.coins.filter(c => c[0].toLowerCase().startsWith(this.ticker.toLowerCase())).splice(0, 4)
       } else {
         return null
+      }
+    },
+
+    normalizedGraph() {
+      const maxValue = Math.max(...this.graph)
+      const minValue = Math.min(...this.graph)
+
+      if (maxValue === minValue) {
+        return this.graph.map(() => 50)
+      }
+
+      return this.graph.map(price => 5 + ((price - minValue) * 95) / (maxValue - minValue))
+    },
+
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
       }
     },
   },
@@ -259,12 +274,30 @@ export default {
       this.error = false
     },
 
-    filter() {
-      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
+    selectedTicker() {
+      this.graph = []
     },
 
-    page() {
-      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
+    tickers(newVal, oldVal) {
+      // ? Почему не сработал watch при добавлении нового тикера в массив
+      console.log(newVal)
+      console.log(oldVal)
+      console.log(newVal === oldVal)
+      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers))
+    },
+
+    filter() {
+      this.page = 1
+    },
+
+    pageStateOptions(value) {
+      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${value.filter}&page=${value.page}`)
+    },
+
+    filteredTickersPaginated() {
+      if (this.filteredTickersPaginated.length === 0 && this.page > 1) {
+        this.page -= 1
+      }
     },
   },
 
@@ -283,7 +316,7 @@ export default {
     if (tickersData) {
       this.tickers = JSON.parse(tickersData)
       this.tickers.forEach(ticker => {
-        this.subscribeToUpdate(ticker.name)
+        this.subscribeToUpdates(ticker.name)
       })
     }
 
