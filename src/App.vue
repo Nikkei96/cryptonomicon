@@ -149,7 +149,7 @@
 </template>
 
 <script>
-import { loadTicker } from '@/api'
+import { subscribeToTicker, unsubscribeFromTicker } from '@/api'
 
 export default {
   name: 'App',
@@ -177,27 +177,30 @@ export default {
   },
 
   methods: {
+    updateTicker(tickerName, price) {
+      this.tickers
+        .filter(t => t.name === tickerName)
+        .forEach(t => {
+          t.price = price
+        })
+    },
+
     formatPrice(price) {
-      if (price != '-') {
+      if (price !== '-') {
         return price > 1 ? price.toFixed(2) : price.toPrecision(2)
+      } else {
+        return '-'
       }
     },
 
     async updateTickers() {
-      if (!this.tickers.length) {
-        return
-      }
-
-      const exchangeData = await loadTicker(this.tickers.map(t => t.name))
-
-      this.tickers.forEach(ticker => {
-        const price = exchangeData[ticker.name.toUpperCase()]
-        if (!price) {
-          ticker.price = '-'
-          return
-        }
-        ticker.price = 1 / price
-      })
+      // if (!this.tickers.length) {
+      //   return
+      // }
+      // this.tickers.forEach(ticker => {
+      //   const price = exchangeData[ticker.name.toUpperCase()]
+      //   ticker.price = price ?? '-'
+      // })
     },
 
     addWithHint(ticker) {
@@ -212,13 +215,16 @@ export default {
       }
 
       const currentTicker = {
-        name: this.ticker.toUpperCase(),
+        name: this.ticker,
         price: '-',
       }
 
       this.tickers = [...this.tickers, currentTicker] // Обновить ссылку на массив
       this.ticker = ''
       this.filter = ''
+      subscribeToTicker(currentTicker.name, newPrice => {
+        this.updateTicker(currentTicker.name, newPrice)
+      })
     },
 
     handleDelete(tickerToRemove) {
@@ -226,6 +232,8 @@ export default {
       if (this.selectedTicker === tickerToRemove) {
         this.selectedTicker = null
       }
+
+      unsubscribeFromTicker(tickerToRemove.name)
     },
   },
 
@@ -323,9 +331,12 @@ export default {
     const tickersData = localStorage.getItem('cryptonomicon-list')
     if (tickersData) {
       this.tickers = JSON.parse(tickersData)
+      this.tickers.forEach(ticker => {
+        subscribeToTicker(ticker.name, newPrice => {
+          this.updateTicker(ticker.name, newPrice)
+        })
+      })
     }
-
-    setInterval(this.updateTickers, 5000)
 
     const response = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
     const coins = await response.json()
