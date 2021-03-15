@@ -95,7 +95,7 @@
             <div class="px-4 py-5 sm:p-6 text-center">
               <dt class="text-sm font-medium text-gray-500 truncate">{{ t.name }} - USD</dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ t.price }}
+                {{ formatPrice(t.price) }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"></div>
@@ -149,6 +149,8 @@
 </template>
 
 <script>
+import { loadTicker } from '@/api'
+
 export default {
   name: 'App',
 
@@ -175,18 +177,27 @@ export default {
   },
 
   methods: {
-    subscribeToUpdates(tickerName) {
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=52d560531aec252bccb710ababace71b484ba5e2a7ba9876ade25ac7df3f2d06`
-        )
-        const data = await f.json()
-        this.tickers.find(t => t.name == tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
+    formatPrice(price) {
+      if (price != '-') {
+        return price > 1 ? price.toFixed(2) : price.toPrecision(2)
+      }
+    },
 
-        if (this.selectedTicker?.name === tickerName) {
-          this.graph.push(data.USD)
+    async updateTickers() {
+      if (!this.tickers.length) {
+        return
+      }
+
+      const exchangeData = await loadTicker(this.tickers.map(t => t.name))
+
+      this.tickers.forEach(ticker => {
+        const price = exchangeData[ticker.name.toUpperCase()]
+        if (!price) {
+          ticker.price = '-'
+          return
         }
-      }, 3000)
+        ticker.price = 1 / price
+      })
     },
 
     addWithHint(ticker) {
@@ -206,9 +217,6 @@ export default {
       }
 
       this.tickers = [...this.tickers, currentTicker] // Обновить ссылку на массив
-
-      this.subscribeToUpdates(currentTicker.name)
-
       this.ticker = ''
       this.filter = ''
     },
@@ -278,11 +286,11 @@ export default {
       this.graph = []
     },
 
-    tickers(newVal, oldVal) {
+    tickers() {
       // ? Почему не сработал watch при добавлении нового тикера в массив
-      console.log(newVal)
-      console.log(oldVal)
-      console.log(newVal === oldVal)
+      // console.log(newVal)
+      // console.log(oldVal)
+      // console.log(newVal === oldVal)
       localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers))
     },
 
@@ -315,10 +323,9 @@ export default {
     const tickersData = localStorage.getItem('cryptonomicon-list')
     if (tickersData) {
       this.tickers = JSON.parse(tickersData)
-      this.tickers.forEach(ticker => {
-        this.subscribeToUpdates(ticker.name)
-      })
     }
+
+    setInterval(this.updateTickers, 5000)
 
     const response = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
     const coins = await response.json()
