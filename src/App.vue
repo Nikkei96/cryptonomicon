@@ -186,21 +186,12 @@ export default {
     },
 
     formatPrice(price) {
-      if (price !== '-') {
+      if (price && price !== '-') {
+        console.log(price)
         return price > 1 ? price.toFixed(2) : price.toPrecision(2)
       } else {
         return '-'
       }
-    },
-
-    async updateTickers() {
-      // if (!this.tickers.length) {
-      //   return
-      // }
-      // this.tickers.forEach(ticker => {
-      //   const price = exchangeData[ticker.name.toUpperCase()]
-      //   ticker.price = price ?? '-'
-      // })
     },
 
     addWithHint(ticker) {
