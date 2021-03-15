@@ -181,12 +181,15 @@ export default {
       this.tickers
         .filter(t => t.name === tickerName)
         .forEach(t => {
+          if (t === this.selectedTicker) {
+            this.graph.push(price)
+          }
           t.price = price
         })
     },
 
     formatPrice(price) {
-      if (price && price !== '-') {
+      if (price !== '-') {
         console.log(price)
         return price > 1 ? price.toFixed(2) : price.toPrecision(2)
       } else {
