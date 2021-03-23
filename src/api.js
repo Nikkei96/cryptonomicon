@@ -1,6 +1,7 @@
 // broadcast channel - канал, по которому можно слушать информацию с других вкладок
 
 const API_KEY = 'ac0e071ce3f16ac5205c5076c21cd9137709e66a952c24c700d66707b5b46339'
+const INVALID_SUB = 'INVALID_SUB'
 // ac0e071ce3f16ac5205c5076c21cd9137709e66a952c24c700d66707b5b46339
 const tickersHandlers = new Map()
 
@@ -9,7 +10,14 @@ const socket = new WebSocket(`wss://streamer.cryptocompare.com/v2?api_key=${API_
 const AGGREGATE_INDEX = '5'
 
 socket.addEventListener('message', e => {
-  const { TYPE: type, FROMSYMBOL: currency, PRICE: newPrice } = JSON.parse(e.data)
+  const { TYPE: type, FROMSYMBOL: currency, PRICE: newPrice, MESSAGE: message } = JSON.parse(e.data)
+  if (message === INVALID_SUB) {
+    console.log(e.data)
+    console.log(tickersHandlers)
+    // subscribeToTickerOnWs()
+    return
+  }
+
   if (type !== AGGREGATE_INDEX || newPrice === undefined) {
     return
   }
@@ -51,10 +59,10 @@ function sendToWebSocket(message) {
   )
 }
 
-function subscribeToTickerOnWs(ticker) {
+function subscribeToTickerOnWs(ticker, base) {
   sendToWebSocket({
     action: 'SubAdd',
-    subs: [`5~CCCAGG~${ticker}~USD`],
+    subs: [`5~CCCAGG~${ticker}~${base}`],
   })
 }
 
@@ -68,7 +76,7 @@ function unSubscribeFromTickerOnWs(ticker) {
 export const subscribeToTicker = (ticker, callback) => {
   const subscribers = tickersHandlers.get(ticker) || []
   tickersHandlers.set(ticker, [...subscribers, callback])
-  subscribeToTickerOnWs(ticker)
+  subscribeToTickerOnWs(ticker, 'USD')
 }
 
 export const unsubscribeFromTicker = ticker => {

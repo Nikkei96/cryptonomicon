@@ -190,7 +190,6 @@ export default {
 
     formatPrice(price) {
       if (price !== '-') {
-        console.log(price)
         return price > 1 ? price.toFixed(2) : price.toPrecision(2)
       } else {
         return '-'
@@ -323,6 +322,7 @@ export default {
     }
 
     const tickersData = localStorage.getItem('cryptonomicon-list')
+
     if (tickersData) {
       this.tickers = JSON.parse(tickersData)
       this.tickers.forEach(ticker => {
