@@ -117,8 +117,13 @@
       </template>
       <section v-if="selectedTicker" class="relative">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">{{ selectedTicker.name }} - USD</h3>
-        <div class="flex items-end border-gray-600 border-b border-l h-64">
-          <div v-for="(bar, idx) of normalizedGraph" :key="idx" :style="{ height: `${bar}%` }" class="bg-purple-800 border w-10"></div>
+        <div class="flex items-end border-gray-600 border-b border-l h-64" ref="graph">
+          <div
+            v-for="(bar, idx) of normalizedGraph"
+            :key="idx"
+            :style="{ height: `${bar}%`, width: `${barWidth}px` }"
+            class="bg-purple-800 border"
+          ></div>
         </div>
         <button @click="selectedTicker = null" type="button" class="absolute top-0 right-0">
           <svg
@@ -168,6 +173,9 @@ export default {
       error: false,
 
       page: 1,
+      maxGraphElements: 1,
+
+      barWidth: 38,
 
       disableButtonStyle: {
         background: 'gray',
@@ -177,12 +185,23 @@ export default {
   },
 
   methods: {
+    calculateMaxGraphElements() {
+      if (!this.$refs.graph) {
+        return
+      }
+      this.maxGraphElements = this.$refs.graph.clientWidth / this.barWidth
+    },
+
     updateTicker(tickerName, price) {
       this.tickers
         .filter(t => t.name === tickerName)
         .forEach(t => {
           if (t === this.selectedTicker) {
             this.graph.push(price)
+
+            while (this.graph.length > this.maxGraphElements) {
+              this.graph.shift()
+            }
           }
           t.price = price
         })
@@ -311,6 +330,8 @@ export default {
   },
 
   async mounted() {
+    window.addEventListener('resize', this.calculateMaxGraphElements)
+
     const windowData = Object.fromEntries(new URL(window.location).searchParams.entries())
 
     if (windowData.filter) {
@@ -335,6 +356,10 @@ export default {
     const response = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
     const coins = await response.json()
     this.coins = Object.entries(coins.Data)
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('resize', this.calculateMaxGraphElements)
   },
 }
 </script>
